@@ -145,7 +145,7 @@ def _template_community(channels, category=None, bot_name="PromoFather"):
     return message
 
 def _template_grid_style(channels, category=None, bot_name="PromoFather"):
-    """Grid-style template with channel pairs"""
+    """Grid-style template with channel pairs - clickable Join Now links in message"""
     separator = "━━━━━━━━━━━━━━━━━━━━━━━━"
     
     message = "📜 𝗔𝗽𝗽 𝗛𝗮𝗰𝗸𝗶𝗻𝗴  ✅ 𝗣𝗿𝗲𝗺𝗶𝘂𝗺 𝗠𝗼𝗱𝘀 📜\n"
@@ -156,7 +156,7 @@ def _template_grid_style(channels, category=None, bot_name="PromoFather"):
         if i < len(channels):
             ch1 = channels[i]
             title1 = ch1.get('title', 'Unknown Channel')
-            username1 = ch1.get('username', 'private')
+            username1 = ch1.get('username')
             
             # Format the title to fit the grid style
             if len(title1) > 15:
@@ -165,20 +165,36 @@ def _template_grid_style(channels, category=None, bot_name="PromoFather"):
             if i + 1 < len(channels):
                 ch2 = channels[i + 1]
                 title2 = ch2.get('title', 'Unknown Channel')
-                username2 = ch2.get('username', 'private')
+                username2 = ch2.get('username')
                 
                 # Format the title to fit the grid style
                 if len(title2) > 15:
                     title2 = title2[:12] + "..."
                 
-                # Add the pair to the message
-                message += f"🆕️ {title1}    ⭐️ {title2}\n"
-                message += f"👉 @𝗝𝗼𝗶𝗻 𝗡𝗼𝘄            👉  @𝗝𝗼𝗶𝗻 𝗡𝗼𝘄 \n"
+                # Add the pair to the message with clickable links
+                message += f"🆕️ {title1}    ⭐️ {title2}\n"
+                
+                # Add clickable "Join Now" links if usernames exist
+                if username1 and username2:
+                    message += f"👉 [Join Now](https://t.me/{username1})            👉 [Join Now](https://t.me/{username2}) \n"
+                elif username1:
+                    message += f"👉 [Join Now](https://t.me/{username1})            👉 Join Now \n"
+                elif username2:
+                    message += f"👉 Join Now            👉 [Join Now](https://t.me/{username2}) \n"
+                else:
+                    message += f"👉 Join Now            👉 Join Now \n"
+                    
                 message += f"{separator}\n\n"
             else:
                 # Single channel if odd number
                 message += f"🆕️ {title1}\n"
-                message += f"👉 @𝗝𝗼𝗶𝗻 𝗡𝗼𝘄 \n"
+                
+                # Add clickable "Join Now" link if username exists
+                if username1:
+                    message += f"👉 [Join Now](https://t.me/{username1}) \n"
+                else:
+                    message += f"👉 Join Now \n"
+                    
                 message += f"{separator}\n\n"
     
     message += f"💪 *Made by {bot_name}*"
@@ -190,25 +206,14 @@ def _template_grid_style(channels, category=None, bot_name="PromoFather"):
 # -----------------------------
 
 def generate_grid_promo_buttons(channels, bot_username):
-    """Generate special buttons for the grid template where each 'Join Now' text is clickable"""
+    """For grid template, we only want the 'Add Your Channel' button"""
     buttons = []
     
-    # Create buttons for each channel
-    for i, channel in enumerate(channels):
-        username = channel.get('username')
-        if username and username != 'private':
-            # Add button for each channel with "Join Now" text
-            buttons.append([InlineKeyboardButton(f"@𝗝𝗼𝗶𝗻 𝗡𝗼𝘄", url=f"https://t.me/{username}")])
-    
-    # Add the "Add Your Channel" button below all channel buttons
+    # Add only the "Add Your Channel" button
     if bot_username:
         buttons.append([InlineKeyboardButton("➕ Add Your Channel", url=f"https://t.me/{bot_username}")])
     
     return InlineKeyboardMarkup(buttons) if buttons else None
-
-# -----------------------------
-# TEMPLATE SELECTION KEYBOARD
-# -----------------------------
 
 # -----------------------------
 # TEMPLATE SELECTION KEYBOARD
