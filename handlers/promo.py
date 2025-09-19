@@ -1,6 +1,6 @@
 # handlers/promo.py 
 from pyrogram import Client, filters
-from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
+from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, Message, ForceReply
 from pyrogram.enums import ParseMode
 import asyncio
 import database
@@ -15,7 +15,7 @@ from utils.crosstempl import get_promo_templates, generate_promo_message, genera
 # MongoDB Connection
 # -----------------------------
 client = MongoClient(config.MONGO_DB_URI)
-db = client[config.MONGO_DB_NAME]
+db = client[config.MONGO_DB_NAME]  # Use DB name from config
 
 # Temporary in-memory selection store (per admin)
 selected_channels = {}
@@ -254,8 +254,6 @@ async def set_promo_duration(client, callback: CallbackQuery):
         parse_mode=ParseMode.HTML
     )
 
-# In your promo.py file, find the create_promo_post function and modify it:
-
 # ---- Step 6: Send Promo ----
 @Client.on_callback_query(filters.regex(r"^promo_duration:(\d+)$"))
 async def create_promo_post(client, callback: CallbackQuery):
@@ -342,9 +340,6 @@ async def create_promo_post(client, callback: CallbackQuery):
 async def back_to_categories(client, callback: CallbackQuery):
     await cb_send_promos(client, callback)
 
-# Add this to your imports if not already present
-from pyrogram.types import Message, ForceReply
-
 # ---- Write Promo Selection ----
 @Client.on_callback_query(filters.regex(r"^write_promo$"))
 async def cb_write_promo(client, callback: CallbackQuery):
@@ -360,25 +355,29 @@ async def cb_write_promo(client, callback: CallbackQuery):
     
     selected_channels[admin_id]["mode"] = "write_promo"
     
-    await callback.message.edit_text(
+    # Send a new prompt message with ForceReply to make the input specific
+    prompt = await callback.message.reply_text(
         "✍️ **Write Your Own Promo**\n\n"
-        "Please send or forward the message you want to use as a promo post.\n\n"
-        "You can include text, images, videos, or any other media.\n\n"
+        "Please reply to this message with the content you want to use as a promo post.\n\n"
+        "You can send text, media, or forward a message.\n\n"
         "Type /cancel to cancel this operation.",
-        reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton("↩ Back to Templates", callback_data="done_selecting")]
-        ]),
+        reply_markup=ForceReply(selective=True),
         parse_mode=ParseMode.HTML
     )
+    
+    # Store the prompt message ID for verification
+    selected_channels[admin_id]["prompt_message_id"] = prompt.id
 
 # ---- Handle Admin Message for Write Promo ----
-# ---- Handle Admin Message for Write Promo ----
-@Client.on_message(filters.user(config.ADMINS) & ~filters.command("start") & ~filters.command("cancel"))
+@Client.on_message(filters.user(config.ADMINS) & filters.reply & ~filters.command("start") & ~filters.command("cancel"))
 async def handle_admin_promo_message(client, message: Message):
     admin_id = message.from_user.id
     
-    # Check if admin is in write promo mode
+    # Check if admin is in write promo mode and replying to the correct prompt
     if admin_id not in selected_channels or selected_channels[admin_id].get("mode") != "write_promo":
+        return
+    
+    if "prompt_message_id" not in selected_channels[admin_id] or selected_channels[admin_id]["prompt_message_id"] != message.reply_to_message.id:
         return
     
     # Check if we have selected channels
@@ -437,8 +436,6 @@ async def handle_admin_promo_message(client, message: Message):
         parse_mode=ParseMode.HTML
     )
 
-# ---- Handle Custom Promo Duration ----
-# ---- Handle Custom Promo Duration ----
 # ---- Handle Custom Promo Duration ----
 @Client.on_callback_query(filters.regex(r"^custom_promo_duration:(\d+)$"))
 async def create_custom_promo_post(client, callback: CallbackQuery):
@@ -546,6 +543,8 @@ async def create_custom_promo_post(client, callback: CallbackQuery):
             del selected_channels[admin_id]["mode"]
         if "custom_message" in selected_channels[admin_id]:
             del selected_channels[admin_id]["custom_message"]
+        if "prompt_message_id" in selected_channels[admin_id]:
+            del selected_channels[admin_id]["prompt_message_id"]
 
     result_text = f"✅ Custom promo posted in {success_count}/{len(chosen_channels)} channels!\n"
     result_text += f"⏰ Auto-delete after {duration//3600} hours.\n"
@@ -575,6 +574,8 @@ async def cancel_operation(client, message: Message):
             del selected_channels[admin_id]["mode"]
         if "custom_message" in selected_channels[admin_id]:
             del selected_channels[admin_id]["custom_message"]
+        if "prompt_message_id" in selected_channels[admin_id]:
+            del selected_channels[admin_id]["prompt_message_id"]
     
     await message.reply_text(
         "❌ Operation cancelled.",
