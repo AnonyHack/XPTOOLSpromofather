@@ -26,7 +26,7 @@ LOGGER_ID = int(getenv("LOGGER_ID", -1001234567890))
 
 # ───── Promo Configurations ───── #
 MIN_CHANNELS_FOR_CROSS_PROMO = int(getenv("MIN_CHANNELS_FOR_CROSS_PROMO", "3"))
-
+PROMO_IMAGE = "https://i.ibb.co/tpqjvwDV/promobanner2.jpg"  # Default promo image URL
 # Eligibility settings
 MIN_SUBSCRIBERS = 500  # 👈 You can change this anytime (e.g., 100, 10, 1000, etc.)
 
@@ -90,6 +90,7 @@ print(f"MIN_CHANNELS_FOR_CROSS_PROMO: {MIN_CHANNELS_FOR_CROSS_PROMO}")
 print(f"MIN_SUBSCRIBERS: {MIN_SUBSCRIBERS}")
 print(f"PROMO_IMAGE: {PROMO_IMAGE}")
 print(f"OWNER_USERNAME: {OWNER_USERNAME}")
+
 
 
 
