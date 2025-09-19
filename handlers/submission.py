@@ -221,15 +221,16 @@ async def cb_admin_action(client: Client, cq: CallbackQuery):
                     f"• Your subscriber count will grow faster\n"
                     f"• You'll get more engagement on your content\n\n"
                     f"🌟 **Next Steps:**\n"
-                    f"• Join our official channel for updates and tips\n"
+                    f"• Join our official channels for updates and tips\n"
                     f"• Keep your content quality high for better results\n"
                     f"• Invite other channel owners to join our platform\n\n"
                     f"Thank you for choosing us! 🚀"
                 )
                 
-                # Create button that redirects to the approved channel
+                # Two buttons: Official + Partner channel
                 buttons = InlineKeyboardMarkup([
-                    [InlineKeyboardButton("📢 Join Our Official Channel", url=config.APPROVED_CHANNEL_LINK)]
+                    [InlineKeyboardButton("📢 Join Our Admins Group", url=config.ADMINS_GROUP_LINK)],
+                    [InlineKeyboardButton("🔥 Join Updates Channel", url=config.UPDATES_CHANNEL_LINK)]
                 ])
                 
                 await client.send_message(
