@@ -26,7 +26,7 @@ LOGGER_ID = int(getenv("LOGGER_ID", -1001234567890))
 
 # ───── Promo Configurations ───── #
 MIN_CHANNELS_FOR_CROSS_PROMO = int(getenv("MIN_CHANNELS_FOR_CROSS_PROMO", "3"))
-PROMO_IMAGE = "https://envs.sh/tAg.jpg"  # Optional image
+
 # Eligibility settings
 MIN_SUBSCRIBERS = 500  # 👈 You can change this anytime (e.g., 100, 10, 1000, etc.)
 
@@ -50,7 +50,7 @@ UPDATES_CHANNEL_LINK = "https://t.me/Promosfather"  # Channel for updates
 START_MSG_VID = getenv("START_MSG_VID", "")
 START_MSG_PHOTO = getenv("START_MSG_PHOTO", "https://i.ibb.co/JjYgkbsn/promologo.jpg")
 HELP_IMG_URL = getenv("HELP_IMG_URL", "https://i.ibb.co/3Y89Scqw/promologo2.jpg")
-PROMO_BANNER = getenv("PROMO_BANNER", "https://i.ibb.co/tpqjvwDV/promobanner2.jpg, https://i.ibb.co/k2Mt3hNb/promobanner1.jpg") # Promo banner image https://i.ibb.co/k2Mt3hNb/promobanner1.jpg
+PROMO_IMAGE = getenv("PROMO_IMAGE", "https://i.ibb.co/tpqjvwDV/promobanner2.jpg, https://i.ibb.co/k2Mt3hNb/promobanner1.jpg") # Promo banner image https://i.ibb.co/k2Mt3hNb/promobanner1.jpg
 
 # ───── Runtime Structures ───── #
 BANNED_USERS = filters.user()
@@ -90,5 +90,6 @@ print(f"MIN_CHANNELS_FOR_CROSS_PROMO: {MIN_CHANNELS_FOR_CROSS_PROMO}")
 print(f"MIN_SUBSCRIBERS: {MIN_SUBSCRIBERS}")
 print(f"PROMO_IMAGE: {PROMO_IMAGE}")
 print(f"OWNER_USERNAME: {OWNER_USERNAME}")
+
 
 
