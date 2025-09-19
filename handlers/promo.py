@@ -51,11 +51,17 @@ async def cb_send_promos(client, callback: CallbackQuery):
                for cat in categories]
     buttons.append([InlineKeyboardButton("↩ Back to Admin Panel", callback_data="admin_panel")])
 
-    await callback.message.edit_text(
-        "📢 **Choose a category to run the cross-promo:**",
-        reply_markup=InlineKeyboardMarkup(buttons),
-        parse_mode=ParseMode.HTML
-    )
+    try:
+        await callback.message.edit_text(
+            "📢 **Choose a category to run the cross-promo:**",
+            reply_markup=InlineKeyboardMarkup(buttons),
+            parse_mode=ParseMode.HTML
+        )
+    except Exception as e:
+        # Handle cases where message content is the same
+        if "MESSAGE_NOT_MODIFIED" not in str(e):
+            await callback.answer("An error occurred. Please try again.", show_alert=True)
+            print(f"Error in cb_send_promos: {e}")
 
 @Client.on_message(filters.command("sendpromos") & filters.user(config.ADMINS))
 async def start_promo(client, message):
@@ -86,12 +92,17 @@ async def choose_subs_range(client, callback: CallbackQuery):
     
     buttons.append([InlineKeyboardButton("↩ Back to Categories", callback_data="send_promos")])
 
-    await callback.message.edit_text(
-        f"📊 **Select Subscriber Range for {CATEGORY_NAMES.get(category, category)}**\n\n"
-        "Choose which subscriber range you want to target:",
-        reply_markup=InlineKeyboardMarkup(buttons),
-        parse_mode=ParseMode.HTML
-    )
+    try:
+        await callback.message.edit_text(
+            f"📊 **Select Subscriber Range for {CATEGORY_NAMES.get(category, category)}**\n\n"
+            "Choose which subscriber range you want to target:",
+            reply_markup=InlineKeyboardMarkup(buttons),
+            parse_mode=ParseMode.HTML
+        )
+    except Exception as e:
+        if "MESSAGE_NOT_MODIFIED" not in str(e):
+            await callback.answer("An error occurred. Please try again.", show_alert=True)
+            print(f"Error in choose_subs_range: {e}")
 
 # ---- Step 3: Select Channels by Range ----
 @Client.on_callback_query(filters.regex(r"^promo_range:([\w\+-]+):(.+)"))
@@ -128,12 +139,17 @@ async def list_channels_by_range(client, callback: CallbackQuery):
             [InlineKeyboardButton("↩ Choose Different Range", callback_data=f"promo_category:{category}")],
             [InlineKeyboardButton("↩ Back to Categories", callback_data="send_promos")]
         ])
-        await callback.message.edit_text(
-            f"❌ No channels found in {CATEGORY_NAMES.get(category, category)} "
-            f"with {SUBS_RANGES.get(subs_range, subs_range)}.",
-            reply_markup=kb,
-            parse_mode=ParseMode.HTML
-        )
+        try:
+            await callback.message.edit_text(
+                f"❌ No channels found in {CATEGORY_NAMES.get(category, category)} "
+                f"with {SUBS_RANGES.get(subs_range, subs_range)}.",
+                reply_markup=kb,
+                parse_mode=ParseMode.HTML
+            )
+        except Exception as e:
+            if "MESSAGE_NOT_MODIFIED" not in str(e):
+                await callback.answer("An error occurred. Please try again.", show_alert=True)
+                print(f"Error in list_channels_by_range (no channels): {e}")
         return
 
     # Build buttons with ON/OFF for selection
@@ -154,7 +170,13 @@ async def list_channels_by_range(client, callback: CallbackQuery):
         "\n".join([f"• {c.get('title','Unknown')} (@{c.get('username','private')}) - {c.get('subs_count',0)} subs" 
                   for c in filtered_channels])
     )
-    await callback.message.edit_text(msg_text, reply_markup=InlineKeyboardMarkup(buttons), parse_mode=ParseMode.HTML)
+    
+    try:
+        await callback.message.edit_text(msg_text, reply_markup=InlineKeyboardMarkup(buttons), parse_mode=ParseMode.HTML)
+    except Exception as e:
+        if "MESSAGE_NOT_MODIFIED" not in str(e):
+            await callback.answer("An error occurred. Please try again.", show_alert=True)
+            print(f"Error in list_channels_by_range: {e}")
 
 # ---- Toggle channel selection ----
 @Client.on_callback_query(filters.regex(r"^toggle_channel:(-?\d+)"))
@@ -204,7 +226,12 @@ async def toggle_channel(client, callback: CallbackQuery):
     buttons.append([InlineKeyboardButton("↩ Choose Different Range", callback_data=f"promo_category:{category}")])
     buttons.append([InlineKeyboardButton("↩ Back to Categories", callback_data="send_promos")])
 
-    await callback.message.edit_reply_markup(InlineKeyboardMarkup(buttons))
+    try:
+        await callback.message.edit_reply_markup(InlineKeyboardMarkup(buttons))
+    except Exception as e:
+        if "MESSAGE_NOT_MODIFIED" not in str(e):
+            await callback.answer("An error occurred. Please try again.", show_alert=True)
+            print(f"Error in toggle_channel: {e}")
 
 # ---- Step 4: Choose Template ----
 @Client.on_callback_query(filters.regex(r"^done_selecting$"))
@@ -216,12 +243,17 @@ async def choose_template(client, callback: CallbackQuery):
 
     selected_channels[admin_id]["final"] = list(selected_channels[admin_id]["selected"])
 
-    await callback.message.edit_text(
-        "🎨 **Choose a Promo Template**\n\n"
-        "Select the style for your cross-promotion post:",
-        reply_markup=get_template_selection_keyboard(),
-        parse_mode=ParseMode.HTML
-    )
+    try:
+        await callback.message.edit_text(
+            "🎨 **Choose a Promo Template**\n\n"
+            "Select the style for your cross-promotion post:",
+            reply_markup=get_template_selection_keyboard(),
+            parse_mode=ParseMode.HTML
+        )
+    except Exception as e:
+        if "MESSAGE_NOT_MODIFIED" not in str(e):
+            await callback.answer("An error occurred. Please try again.", show_alert=True)
+            print(f"Error in choose_template: {e}")
 
 # ---- Step 5: Set Duration ----
 @Client.on_callback_query(filters.regex(r"^promo_template:(.+)"))
@@ -247,12 +279,17 @@ async def set_promo_duration(client, callback: CallbackQuery):
     selected_count = len(selected_channels[admin_id]["selected"])
     category = selected_channels[admin_id]["category"]
     
-    await callback.message.edit_text(
-        f"✅ Selected {selected_count} channels in {CATEGORY_NAMES.get(category, category)}\n\n"
-        "⏱ **How long should the promo post last before auto-deletion?**",
-        reply_markup=InlineKeyboardMarkup(duration_buttons),
-        parse_mode=ParseMode.HTML
-    )
+    try:
+        await callback.message.edit_text(
+            f"✅ Selected {selected_count} channels in {CATEGORY_NAMES.get(category, category)}\n\n"
+            "⏱ **How long should the promo post last before auto-deletion?**",
+            reply_markup=InlineKeyboardMarkup(duration_buttons),
+            parse_mode=ParseMode.HTML
+        )
+    except Exception as e:
+        if "MESSAGE_NOT_MODIFIED" not in str(e):
+            await callback.answer("An error occurred. Please try again.", show_alert=True)
+            print(f"Error in set_promo_duration: {e}")
 
 # ---- Step 6: Send Promo ----
 @Client.on_callback_query(filters.regex(r"^promo_duration:(\d+)$"))
@@ -291,14 +328,27 @@ async def create_promo_post(client, callback: CallbackQuery):
     for channel in chosen_channels:
         target = f"@{channel['username']}" if channel.get("username") else channel["channel_id"]
         try:
-            if getattr(config, "PROMO_IMAGE", None):
-                sent = await client.send_photo(
-                    chat_id=target,
-                    photo=config.PROMO_IMAGE,
-                    caption=promo_text,
-                    reply_markup=promo_buttons,
-                    parse_mode=ParseMode.MARKDOWN
-                )
+            # Check if PROMO_IMAGE exists and is valid
+            promo_image = getattr(config, "PROMO_IMAGE", None)
+            if promo_image:
+                try:
+                    # Try to send as photo first
+                    sent = await client.send_photo(
+                        chat_id=target,
+                        photo=promo_image,
+                        caption=promo_text,
+                        reply_markup=promo_buttons,
+                        parse_mode=ParseMode.MARKDOWN
+                    )
+                except Exception as photo_error:
+                    # If photo fails, fall back to text message
+                    print(f"Photo send failed for {target}: {photo_error}. Falling back to text.")
+                    sent = await client.send_message(
+                        chat_id=target,
+                        text=promo_text,
+                        reply_markup=promo_buttons,
+                        parse_mode=ParseMode.MARKDOWN
+                    )
             else:
                 sent = await client.send_message(
                     chat_id=target,
@@ -329,11 +379,17 @@ async def create_promo_post(client, callback: CallbackQuery):
         if len(failed_channels) > 3:
             result_text += f" and {len(failed_channels)-3} more..."
 
-    await callback.message.edit_text(
-        result_text,
-        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("↩ Back to Admin Panel", callback_data="admin_panel")]]),
-        parse_mode=ParseMode.HTML
-    )
+    try:
+        await callback.message.edit_text(
+            result_text,
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("↩ Back to Admin Panel", callback_data="admin_panel")]]),
+            parse_mode=ParseMode.HTML
+        )
+    except Exception as e:
+        if "MESSAGE_NOT_MODIFIED" not in str(e):
+            await callback.answer("An error occurred. Please try again.", show_alert=True)
+            print(f"Error in create_promo_post: {e}")
+
 
 # ---- Back to categories ----
 @Client.on_callback_query(filters.regex(r"^promo_back_categories$"))
@@ -382,12 +438,15 @@ async def handle_admin_promo_message(client, message: Message):
     
     # Check if we have selected channels
     if "final" not in selected_channels[admin_id] or not selected_channels[admin_id]["final"]:
-        await message.reply_text(
-            "❌ No channels selected for promotion. Please start over with /sendpromos",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("↩ Back to Admin Panel", callback_data="admin_panel")]
-            ])
-        )
+        try:
+            await message.reply_text(
+                "❌ No channels selected for promotion. Please start over with /sendpromos",
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("↩ Back to Admin Panel", callback_data="admin_panel")]
+                ])
+            )
+        except Exception as e:
+            print(f"Error in handle_admin_promo_message (no channels): {e}")
         return
     
     # Store the message details
@@ -428,14 +487,18 @@ async def handle_admin_promo_message(client, message: Message):
     selected_count = len(selected_channels[admin_id]["final"])
     category = selected_channels[admin_id].get("category", "Unknown")
     
-    await message.reply_text(
-        f"✅ Received your custom promo message!\n"
-        f"✅ Selected {selected_count} channels in {CATEGORY_NAMES.get(category, category)}\n\n"
-        "⏱ **How long should the promo post last before auto-deletion?**",
-        reply_markup=InlineKeyboardMarkup(duration_buttons),
-        parse_mode=ParseMode.HTML
-    )
+    try:
+        await message.reply_text(
+            f"✅ Received your custom promo message!\n"
+            f"✅ Selected {selected_count} channels in {CATEGORY_NAMES.get(category, category)}\n\n"
+            "⏱ **How long should the promo post last before auto-deletion?**",
+            reply_markup=InlineKeyboardMarkup(duration_buttons),
+            parse_mode=ParseMode.HTML
+        )
+    except Exception as e:
+        print(f"Error in handle_admin_promo_message: {e}")
 
+# ---- Handle Custom Promo Duration ----
 # ---- Handle Custom Promo Duration ----
 @Client.on_callback_query(filters.regex(r"^custom_promo_duration:(\d+)$"))
 async def create_custom_promo_post(client, callback: CallbackQuery):
@@ -472,57 +535,79 @@ async def create_custom_promo_post(client, callback: CallbackQuery):
         try:
             # Handle forwarded messages - just forward them without buttons
             if custom_message.get("is_forward"):
-                # Forward the original message and capture the message ID
                 forwarded_msg = await client.forward_messages(
                     chat_id=target,
                     from_chat_id=custom_message["forward_from_chat_id"],
                     message_ids=custom_message["forward_from_message_id"]
                 )
-                
-                # Save the forwarded message ID for deletion
                 if forwarded_msg:
                     promo_id = database.save_promo_post(target, forwarded_msg.id, duration)
                 else:
-                    # Fallback if forwarding fails
                     sent = await client.send_message(
                         chat_id=target,
                         text=custom_message.get("text", "🔗 **Check out these channels:**"),
                         parse_mode=ParseMode.MARKDOWN
                     )
                     promo_id = database.save_promo_post(target, sent.id, duration)
-                
+
             elif custom_message["message_type"] == "photo" and custom_message["media"]:
-                sent = await client.send_photo(
-                    chat_id=target,
-                    photo=custom_message["media"],
-                    caption=custom_message["text"],
-                    reply_markup=promo_buttons,
-                    parse_mode=ParseMode.MARKDOWN
-                )
+                try:
+                    sent = await client.send_photo(
+                        chat_id=target,
+                        photo=custom_message["media"],
+                        caption=custom_message["text"],
+                        reply_markup=promo_buttons,
+                        parse_mode=ParseMode.MARKDOWN
+                    )
+                except Exception as photo_error:
+                    print(f"Photo send failed for {target}: {photo_error}. Falling back to text.")
+                    sent = await client.send_message(
+                        chat_id=target,
+                        text=custom_message["text"],
+                        reply_markup=promo_buttons,
+                        parse_mode=ParseMode.MARKDOWN
+                    )
                 promo_id = database.save_promo_post(target, sent.id, duration)
-                
+
             elif custom_message["message_type"] == "video" and custom_message["media"]:
-                sent = await client.send_video(
-                    chat_id=target,
-                    video=custom_message["media"],
-                    caption=custom_message["text"],
-                    reply_markup=promo_buttons,
-                    parse_mode=ParseMode.MARKDOWN
-                )
+                try:
+                    sent = await client.send_video(
+                        chat_id=target,
+                        video=custom_message["media"],
+                        caption=custom_message["text"],
+                        reply_markup=promo_buttons,
+                        parse_mode=ParseMode.MARKDOWN
+                    )
+                except Exception as video_error:
+                    print(f"Video send failed for {target}: {video_error}. Falling back to text.")
+                    sent = await client.send_message(
+                        chat_id=target,
+                        text=custom_message["text"],
+                        reply_markup=promo_buttons,
+                        parse_mode=ParseMode.MARKDOWN
+                    )
                 promo_id = database.save_promo_post(target, sent.id, duration)
-                
+
             elif custom_message["message_type"] == "document" and custom_message["media"]:
-                sent = await client.send_document(
-                    chat_id=target,
-                    document=custom_message["media"],
-                    caption=custom_message["text"],
-                    reply_markup=promo_buttons,
-                    parse_mode=ParseMode.MARKDOWN
-                )
+                try:
+                    sent = await client.send_document(
+                        chat_id=target,
+                        document=custom_message["media"],
+                        caption=custom_message["text"],
+                        reply_markup=promo_buttons,
+                        parse_mode=ParseMode.MARKDOWN
+                    )
+                except Exception as doc_error:
+                    print(f"Document send failed for {target}: {doc_error}. Falling back to text.")
+                    sent = await client.send_message(
+                        chat_id=target,
+                        text=custom_message["text"],
+                        reply_markup=promo_buttons,
+                        parse_mode=ParseMode.MARKDOWN
+                    )
                 promo_id = database.save_promo_post(target, sent.id, duration)
-                
+
             else:
-                # Text message
                 sent = await client.send_message(
                     chat_id=target,
                     text=custom_message["text"],
@@ -537,14 +622,11 @@ async def create_custom_promo_post(client, callback: CallbackQuery):
             print(f"❌ Could not post in {target}: {e}")
             failed_channels.append(channel.get('title', 'Unknown'))
 
-    # Clean up
+    # Clean up session state
     if admin_id in selected_channels:
-        if "mode" in selected_channels[admin_id]:
-            del selected_channels[admin_id]["mode"]
-        if "custom_message" in selected_channels[admin_id]:
-            del selected_channels[admin_id]["custom_message"]
-        if "prompt_message_id" in selected_channels[admin_id]:
-            del selected_channels[admin_id]["prompt_message_id"]
+        for key in ["mode", "custom_message", "prompt_message_id"]:
+            if key in selected_channels[admin_id]:
+                del selected_channels[admin_id][key]
 
     result_text = f"✅ Custom promo posted in {success_count}/{len(chosen_channels)} channels!\n"
     result_text += f"⏰ Auto-delete after {duration//3600} hours.\n"
@@ -557,11 +639,17 @@ async def create_custom_promo_post(client, callback: CallbackQuery):
         if len(failed_channels) > 3:
             result_text += f" and {len(failed_channels)-3} more..."
 
-    await callback.message.edit_text(
-        result_text,
-        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("↩ Back to Admin Panel", callback_data="admin_panel")]]),
-        parse_mode=ParseMode.HTML
-    )
+    try:
+        await callback.message.edit_text(
+            result_text,
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("↩ Back to Admin Panel", callback_data="admin_panel")]]),
+            parse_mode=ParseMode.HTML
+        )
+    except Exception as e:
+        if "MESSAGE_NOT_MODIFIED" not in str(e):
+            await callback.answer("An error occurred. Please try again.", show_alert=True)
+            print(f"Error in create_custom_promo_post: {e}")
+
 
 # ---- Cancel Operation ----
 @Client.on_message(filters.user(config.ADMINS) & filters.command("cancel"))
@@ -577,12 +665,15 @@ async def cancel_operation(client, message: Message):
         if "prompt_message_id" in selected_channels[admin_id]:
             del selected_channels[admin_id]["prompt_message_id"]
     
-    await message.reply_text(
-        "❌ Operation cancelled.",
-        reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton("↩ Back to Admin Panel", callback_data="admin_panel")]
-        ])
-    )
+    try:
+        await message.reply_text(
+            "❌ Operation cancelled.",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("↩ Back to Admin Panel", callback_data="admin_panel")]
+            ])
+        )
+    except Exception as e:
+        print(f"Error in cancel_operation: {e}")
 
 # ---- Auto Deletion Worker ----
 async def promo_cleanup_worker(client: Client):
