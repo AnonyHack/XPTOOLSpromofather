@@ -43,7 +43,8 @@ HEROKU_API_KEY = getenv("HEROKU_API_KEY")
 SUPPORT_CHANNEL = getenv("SUPPORT_CHANNEL", "https://t.me/Megahubbots")
 SUPPORT_CHAT = getenv("SUPPORT_CHAT", "https://t.me/Am_Itachiuchiha")
 SUBMISSION_GUIDE_URL = getenv("SUBMISSION_GUIDE_URL", "https://t.me/Promosfather/3")
-APPROVED_CHANNEL_LINK = "https://t.me/+TjbntORY8JVkOWJk"  # Where users can join after channel approval
+ADMINS_GROUP_LINK = "https://t.me/+TjbntORY8JVkOWJk"  # Where users can join after channel 
+UPDATES_CHANNEL_LINK = "https://t.me/Promosfather"  # Channel for updates
 
 # ───── Bot Media Assets ───── #
 START_MSG_VID = getenv("START_MSG_VID", "")
@@ -89,4 +90,5 @@ print(f"MIN_CHANNELS_FOR_CROSS_PROMO: {MIN_CHANNELS_FOR_CROSS_PROMO}")
 print(f"MIN_SUBSCRIBERS: {MIN_SUBSCRIBERS}")
 print(f"PROMO_IMAGE: {PROMO_IMAGE}")
 print(f"OWNER_USERNAME: {OWNER_USERNAME}")
+
 
