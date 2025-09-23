@@ -2,6 +2,7 @@
 from pyrogram import Client, filters
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from pyrogram.enums import ParseMode
+from pyrogram.errors import MessageNotModified  # Added specific exception import
 import config
 import database  # Add this import
 from datetime import datetime
@@ -18,7 +19,7 @@ def main_keyboard(user_id=None):
         [InlineKeyboardButton("📂 My Channels", callback_data="my_channels:0")],
         [InlineKeyboardButton("❓ Help", callback_data="help")],
         [InlineKeyboardButton("📺 Submission Guide", url=config.SUBMISSION_GUIDE_URL or "")],
-        [InlineKeyboardButton("🔗 Support", url=config.SUPPORT_CHAT or config.SUPPORT_CHANNEL or "https://t.me/Megahubbots")],
+        [InlineKeyboardButton("🔗 Support", url=config.SUPPORT_CHAT or config.SUPPORT_CHANNEL or "")],
     ]
     
     # ✅ Add Admin Panel button for admins
@@ -84,28 +85,46 @@ async def admin_panel_cb(client: Client, cq: CallbackQuery):
         await cq.answer("❌ Admin access required!", show_alert=True)
         return
     
-    await cq.message.edit_text(
+    text = (
         "👨‍💼 **Admin Panel**\n\n"
-        "Select an option:",
-        reply_markup=get_admin_panel(),
-        parse_mode=ParseMode.HTML
+        "Select an option:"
     )
+    keyboard = get_admin_panel()
+    
+    try:
+        await cq.message.edit_text(
+            text,
+            reply_markup=keyboard,
+            parse_mode=ParseMode.HTML
+        )
+    except MessageNotModified:
+        pass  # Message already has the same content
+    except Exception as e:
+        await cq.answer("An error occurred. Please try again.", show_alert=True)
+        print(f"Error in admin_panel_cb: {e}")
 
 # Add Channel
 @Client.on_callback_query(filters.regex(r"^add_channel$"))
 async def cb_add_channel(client: Client, cq: CallbackQuery):
     await cq.answer()
     text = (
-        f"<b>➕ Submit Your Channel</b>\n\n"
-        "To submit your channel for review, please do one of the following:\n\n"
-        "1. Forward the most recent post from your channel to me (preferred), OR\n"
-        "2. Send your channel link (e.g., https://t.me/yourchannelusername)\n\n"
-        "Make sure the bot is an admin in your channel with permission to post.\n\n"
-        f"Minimum required subscribers: <b>{config.MIN_SUBSCRIBERS}</b>.\n\n"
-        "When you've forwarded/sent the link, I'll proceed with asking for category & type."
+        "<b>📘 PromosFatherBot Help</b>\n\n"
+        "🔹 To submit your channel:\n"
+        "   1. Add this Bot in your channel with Admin Post Rights\n"
+        "   2. Use '➕ Add Channel'\n"
+        "   3. Forward a message from your channel to here\n"
+        "   4. Select a category when prompted\n"
+        "   5. Wait for admin approval\n\n"
     )
     kb = InlineKeyboardMarkup([[InlineKeyboardButton("Cancel", callback_data="go_back_start")]])
-    await cq.message.edit_text(text, parse_mode=ParseMode.HTML, reply_markup=kb)
+    
+    try:
+        await cq.message.edit_text(text, parse_mode=ParseMode.HTML, reply_markup=kb)
+    except MessageNotModified:
+        pass  # Message already has the same content
+    except Exception as e:
+        await cq.answer("An error occurred. Please try again.", show_alert=True)
+        print(f"Error in cb_add_channel: {e}")
 
 # My Channels - FIXED: Now uses database instead of config.adminlist
 @Client.on_callback_query(filters.regex(r"^my_channels:(\d+)$"))
@@ -128,7 +147,14 @@ async def cb_my_channels(client: Client, cq: CallbackQuery):
             [InlineKeyboardButton("➕ Submit Channel", callback_data="add_channel")],
             [InlineKeyboardButton("↩ Back to Main", callback_data="go_back_start")]
         ])
-        return await cq.message.edit_text(text, parse_mode=ParseMode.HTML, reply_markup=kb)
+        try:
+            await cq.message.edit_text(text, parse_mode=ParseMode.HTML, reply_markup=kb)
+        except MessageNotModified:
+            pass  # Message already has the same content
+        except Exception as e:
+            await cq.answer("An error occurred. Please try again.", show_alert=True)
+            print(f"Error in cb_my_channels (no channels): {e}")
+        return
 
     if page < 0: page = 0
     if page >= total: page = total - 1
@@ -158,8 +184,11 @@ async def cb_my_channels(client: Client, cq: CallbackQuery):
 
     try:
         await cq.message.edit_text(text, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(buttons))
-    except Exception:
-        await cq.message.edit_text(text, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(buttons))
+    except MessageNotModified:
+        pass  # Message already has the same content
+    except Exception as e:
+        await cq.answer("An error occurred. Please try again.", show_alert=True)
+        print(f"Error in cb_my_channels: {e}")
 
 # Remove Channel - FIXED: Now uses database
 @Client.on_callback_query(filters.regex(r"^remove:(-?\d+)$"))
@@ -172,21 +201,35 @@ async def cb_remove_channel(client: Client, cq: CallbackQuery):
     success = database.remove_channel(user_id, channel_id)
     
     if success:
-        await cq.message.edit_text(
-            "✅ Channel removed successfully.", 
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("📂 My Channels", callback_data="my_channels:0")],
-                [InlineKeyboardButton("↩ Back to Main", callback_data="go_back_start")]
-            ])
+        text = (
+            "✅ Channel removed successfully."
         )
+        kb = InlineKeyboardMarkup([
+            [InlineKeyboardButton("📂 My Channels", callback_data="my_channels:0")],
+            [InlineKeyboardButton("↩ Back to Main", callback_data="go_back_start")]
+        ])
+        try:
+            await cq.message.edit_text(text, reply_markup=kb)
+        except MessageNotModified:
+            pass  # Message already has the same content
+        except Exception as e:
+            await cq.answer("An error occurred. Please try again.", show_alert=True)
+            print(f"Error in cb_remove_channel (success): {e}")
     else:
-        await cq.message.edit_text(
-            "❌ Could not remove channel (not found or DB error).", 
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("📂 My Channels", callback_data="my_channels:0")],
-                [InlineKeyboardButton("↩ Back to Main", callback_data="go_back_start")]
-            ])
+        text = (
+            "❌ Could not remove channel (not found or DB error)."
         )
+        kb = InlineKeyboardMarkup([
+            [InlineKeyboardButton("📂 My Channels", callback_data="my_channels:0")],
+            [InlineKeyboardButton("↩ Back to Main", callback_data="go_back_start")]
+        ])
+        try:
+            await cq.message.edit_text(text, reply_markup=kb)
+        except MessageNotModified:
+            pass  # Message already has the same content
+        except Exception as e:
+            await cq.answer("An error occurred. Please try again.", show_alert=True)
+            print(f"Error in cb_remove_channel (failure): {e}")
 
 # Help
 @Client.on_callback_query(filters.regex(r"^help$"))
@@ -207,17 +250,32 @@ async def cb_help(client: Client, cq: CallbackQuery):
         "- No prohibited content\n"
     )
     kb = InlineKeyboardMarkup([[InlineKeyboardButton("Go Back", callback_data="go_back_start")]])
-    await cq.message.edit_text(text, parse_mode=ParseMode.HTML, reply_markup=kb)
+    try:
+        await cq.message.edit_text(text, parse_mode=ParseMode.HTML, reply_markup=kb)
+    except MessageNotModified:
+        pass  # Message already has the same content
+    except Exception as e:
+        await cq.answer("An error occurred. Please try again.", show_alert=True)
+        print(f"Error in cb_help: {e}")
 
 # Go back
 @Client.on_callback_query(filters.regex(r"^go_back_start$"))
 async def cb_go_back(client: Client, cq: CallbackQuery):
     await cq.answer()
     keyboard = main_keyboard(cq.from_user.id)
-    await cq.message.edit_text(
+    text = (
         f"👋 Hello <b>{cq.from_user.first_name}</b>,\n\n"
         f"Welcome to <b>{config.BOT_NAME}</b> 🚀\n\n"
-        f"Use the buttons below to Add your channel, view your channels or get help.",
-        parse_mode=ParseMode.HTML,
-        reply_markup=keyboard
+        f"Use the buttons below to Add your channel, view your channels or get help."
     )
+    try:
+        await cq.message.edit_text(
+            text,
+            parse_mode=ParseMode.HTML,
+            reply_markup=keyboard
+        )
+    except MessageNotModified:
+        pass  # Message already has the same content
+    except Exception as e:
+        await cq.answer("An error occurred. Please try again.", show_alert=True)
+        print(f"Error in cb_go_back: {e}")
