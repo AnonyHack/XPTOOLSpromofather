@@ -2,36 +2,21 @@
 from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, Message
 from pyrogram.enums import ParseMode
+from datetime import datetime, timedelta
 import config
 import database
 
 # Admin panel keyboard
 def get_admin_panel():
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("📢 Send Promos", callback_data="send_promos")],
-        [InlineKeyboardButton("🗑️ Delete Promo", callback_data="delete_promo_menu")],
-        [InlineKeyboardButton("📋 List Promos", callback_data="list_promos_menu")],
-        [InlineKeyboardButton("📊 Stats", callback_data="admin_stats")],
-        [InlineKeyboardButton("🚫 Ban & Unban", callback_data="ban_menu")],
-        [InlineKeyboardButton("↩ Back to Main", callback_data="go_back_start")]
-    ])
-
-# Admin stats callback
-# handlers/admin.py
-from pyrogram import Client, filters
-from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, Message
-from pyrogram.enums import ParseMode
-import config
-import database
-
-# Admin panel keyboard
-def get_admin_panel():
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton("📢 Send Promos", callback_data="send_promos")],
-        [InlineKeyboardButton("🗑️ Delete Promo", callback_data="delete_promo_menu")],
-        [InlineKeyboardButton("📋 List Promos", callback_data="list_promos_menu")],
-        [InlineKeyboardButton("📊 Stats", callback_data="admin_stats")],
-        [InlineKeyboardButton("🚫 Ban & Unban", callback_data="ban_menu")],
+        [InlineKeyboardButton("📢 Send Promos", callback_data="send_promos"),
+         InlineKeyboardButton("🗑️ Delete Promo", callback_data="delete_promo_menu")],
+        [InlineKeyboardButton("📋 List Promos", callback_data="list_promos_menu"),
+         InlineKeyboardButton("👥 Check Users", callback_data="check_users:0")],
+        [InlineKeyboardButton("📋 Check Channels", callback_data="check_channels:0"),
+         InlineKeyboardButton("🗑️ Delete Channel", callback_data="delete_channel_menu:0")],
+        [InlineKeyboardButton("📊 Stats", callback_data="admin_stats"),
+         InlineKeyboardButton("🚫 Ban Menu", callback_data="ban_menu")],
         [InlineKeyboardButton("↩ Back to Main", callback_data="go_back_start")]
     ])
 
@@ -42,7 +27,7 @@ async def admin_stats_cb(client: Client, cq: CallbackQuery):
         await cq.answer("❌ Admin access required!", show_alert=True)
         return
     
-    # Get basic stats - FIXED: Count all channels, not just admin's channels
+    # Get basic stats
     all_channels = database.get_all_channels()
     total_channels = len(all_channels)
     pending_count = len([ch for ch in all_channels if ch.get("status") == "PENDING"])
@@ -170,10 +155,13 @@ async def execute_delete_promo(client: Client, cq: CallbackQuery):
             parse_mode=ParseMode.HTML
         )
 
-# List promos menu
-@Client.on_callback_query(filters.regex(r"^list_promos_menu$"))
+# List promos menu with pagination
+@Client.on_callback_query(filters.regex(r"^list_promos_menu(?::(\d+))?$"))
 async def list_promos_menu(client: Client, cq: CallbackQuery):
     await cq.answer()
+    
+    # Extract page number from callback data (default to 0 if not provided)
+    page = int(cq.matches[0].group(1) or 0) if cq.matches else 0
     
     promos = database.get_scheduled_promos()
     if not promos:
@@ -186,10 +174,16 @@ async def list_promos_menu(client: Client, cq: CallbackQuery):
         )
         return
     
-    from datetime import datetime, timedelta
+    # Paginate the promos
+    ITEMS_PER_PAGE = 5
+    start_idx = page * ITEMS_PER_PAGE
+    end_idx = start_idx + ITEMS_PER_PAGE
+    promos_page = promos[start_idx:end_idx]
+    total_pages = (len(promos) + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE
     
+    # Build the message with summarized info
     promo_list = []
-    for promo in promos:
+    for i, promo in enumerate(promos_page, start=start_idx + 1):
         created_at = promo.get("created_at")
         if isinstance(created_at, str):
             try:
@@ -200,24 +194,148 @@ async def list_promos_menu(client: Client, cq: CallbackQuery):
         expires_at = created_at + timedelta(seconds=promo["duration"])
         time_left = expires_at - datetime.utcnow()
         hours_left = max(0, int(time_left.total_seconds() // 3600))
+        minutes_left = max(0, int((time_left.total_seconds() % 3600) // 60))
+        
+        # Shorten channel name if too long
+        channel_name = promo['channel']
+        if len(channel_name) > 25:
+            channel_name = channel_name[:22] + "..."
         
         promo_list.append(
-            f"• **ID:** `{promo.get('promo_id', 'N/A')}`\n"
-            f"  **Channel:** {promo['channel']}\n"
-            f"  **Message ID:** {promo['message_id']}\n"
-            f"  **Time Left:** {hours_left} hours\n"
-            f"  **Expires:** {expires_at.strftime('%Y-%m-%d %H:%M:%S UTC')}\n"
+            f"**{i}. ID:** `{promo.get('promo_id', 'N/A')[:8]}...`\n"
+            f"   **Channel:** {channel_name}\n"
+            f"   **Time Left:** {hours_left}h {minutes_left}m\n"
+            f"   **Expires:** {expires_at.strftime('%m/%d %H:%M UTC')}\n"
         )
     
+    # Build navigation buttons
+    buttons = []
+    
+    # Navigation row
+    nav_buttons = []
+    if page > 0:
+        nav_buttons.append(InlineKeyboardButton("⬅️ Previous", callback_data=f"list_promos_menu:{page-1}"))
+    
+    nav_buttons.append(InlineKeyboardButton(f"📄 {page+1}/{total_pages}", callback_data="no_action"))
+    
+    if end_idx < len(promos):
+        nav_buttons.append(InlineKeyboardButton("Next ➡️", callback_data=f"list_promos_menu:{page+1}"))
+    
+    if nav_buttons:
+        buttons.append(nav_buttons)
+    
+    # Action buttons
+    buttons.append([
+        InlineKeyboardButton("🔍 View Details", callback_data=f"view_promo_details:{page}"),
+        InlineKeyboardButton("🗑️ Delete Promo", callback_data="delete_promo_menu")
+    ])
+    
+    buttons.append([InlineKeyboardButton("↩ Back to Admin Panel", callback_data="admin_panel")])
+    
+    message_text = (
+        f"📋 **Active Promotions** ({len(promos)} total)\n\n"
+        + "\n".join(promo_list)
+        + f"\n\n**Page {page+1} of {total_pages}**"
+    )
+    
+    try:
+        await cq.message.edit_text(
+            message_text,
+            reply_markup=InlineKeyboardMarkup(buttons),
+            parse_mode=ParseMode.HTML
+        )
+    except Exception as e:
+        # If message is still too long, truncate further
+        if "MEDIA_CAPTION_TOO_LONG" in str(e) or "MESSAGE_TOO_LONG" in str(e):
+            # Create an even more summarized version
+            short_promo_list = []
+            for i, promo in enumerate(promos_page, start=start_idx + 1):
+                channel_name = promo['channel']
+                if len(channel_name) > 15:
+                    channel_name = channel_name[:12] + "..."
+                
+                short_promo_list.append(
+                    f"**{i}.** {channel_name} - `{promo.get('promo_id', 'N/A')[:6]}...`"
+                )
+            
+            short_message = (
+                f"📋 **Active Promotions** ({len(promos)} total)\n\n"
+                + "\n".join(short_promo_list)
+                + f"\n\n**Page {page+1} of {total_pages}**\n"
+                "Use 'View Details' to see more information."
+            )
+            
+            await cq.message.edit_text(
+                short_message,
+                reply_markup=InlineKeyboardMarkup(buttons),
+                parse_mode=ParseMode.HTML
+            )
+
+# No action callback for page number button
+@Client.on_callback_query(filters.regex(r"^no_action$"))
+async def no_action_cb(client: Client, cq: CallbackQuery):
+    await cq.answer()  # Just acknowledge the click without doing anything
+
+# View promo details
+@Client.on_callback_query(filters.regex(r"^view_promo_details:(\d+)$"))
+async def view_promo_details(client: Client, cq: CallbackQuery):
+    await cq.answer()
+    page = int(cq.matches[0].group(1))
+    
+    promos = database.get_scheduled_promos()
+    if not promos:
+        await cq.answer("No active promotions found.", show_alert=True)
+        return
+    
+    # Get the first promo from the current page for detailed view
+    start_idx = page * 5
+    if start_idx >= len(promos):
+        await cq.answer("Invalid page.", show_alert=True)
+        return
+    
+    promo = promos[start_idx]
+    
+    # Get detailed information
+    created_at = promo.get("created_at")
+    if isinstance(created_at, str):
+        try:
+            created_at = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+        except:
+            created_at = datetime.utcnow()
+    
+    expires_at = created_at + timedelta(seconds=promo["duration"])
+    time_left = expires_at - datetime.utcnow()
+    hours_left = max(0, int(time_left.total_seconds() // 3600))
+    minutes_left = max(0, int((time_left.total_seconds() % 3600) // 60))
+    
+    # Get channel info from database
+    channel_info = database.get_channel_by_id(promo['channel'])
+    channel_title = channel_info.get('title', 'Unknown') if channel_info else 'Unknown'
+    
+    details_text = (
+        f"🔍 **Promo Details**\n\n"
+        f"**Promo ID:** `{promo.get('promo_id', 'N/A')}`\n"
+        f"**Channel:** {promo['channel']}\n"
+        f"**Channel Title:** {channel_title}\n"
+        f"**Message ID:** {promo['message_id']}\n"
+        f"**Created:** {created_at.strftime('%Y-%m-%d %H:%M:%S UTC')}\n"
+        f"**Duration:** {promo['duration'] // 3600} hours\n"
+        f"**Expires:** {expires_at.strftime('%Y-%m-%d %H:%M:%S UTC')}\n"
+        f"**Time Left:** {hours_left} hours, {minutes_left} minutes\n"
+        f"**Status:** {'Active' if time_left.total_seconds() > 0 else 'Expired'}"
+    )
+    
+    buttons = [
+        [InlineKeyboardButton("🗑️ Delete This Promo", callback_data=f"confirm_delete:{promo.get('promo_id', '')}")],
+        [InlineKeyboardButton("📋 Back to List", callback_data=f"list_promos_menu:{page}")],
+        [InlineKeyboardButton("↩ Admin Panel", callback_data="admin_panel")]
+    ]
+    
     await cq.message.edit_text(
-        "📋 **Active Promotions**\n\n" + "\n".join(promo_list),
-        reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton("↩ Back to Admin Panel", callback_data="admin_panel")]
-        ]),
+        details_text,
+        reply_markup=InlineKeyboardMarkup(buttons),
         parse_mode=ParseMode.HTML
     )
-
-# =============== BAN & UNBAN SECTION ===============
 
 # ============== PAGINATION HELPERS =================
 ITEMS_PER_PAGE = 5
@@ -239,8 +357,6 @@ async def ban_menu(client: Client, cq: CallbackQuery):
          InlineKeyboardButton("👤 Unban User", callback_data="unban_user")],
         [InlineKeyboardButton("📢 Ban Channel", callback_data="ban_channel"),
          InlineKeyboardButton("📢 Unban Channel", callback_data="unban_channel")],
-        [InlineKeyboardButton("👥 Check Users", callback_data="check_users:0")],
-        [InlineKeyboardButton("📋 Check Channels", callback_data="check_channels:0")],
         [InlineKeyboardButton("↩ Back to Admin Panel", callback_data="admin_panel")]
     ])
     await cq.message.edit_text("🚫 **Ban & Unban Menu**", reply_markup=kb, parse_mode=ParseMode.HTML)
@@ -253,7 +369,13 @@ async def check_users_cb(client: Client, cq: CallbackQuery):
     users_page, has_next = paginate_list(users, page)
 
     if not users_page:
-        await cq.answer("❌ No users found.", show_alert=True)
+        await cq.message.edit_text(
+            "📭 **No Users Found**",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("↩ Back to Admin Panel", callback_data="admin_panel")]
+            ]),
+            parse_mode=ParseMode.HTML
+        )
         return
     
     text = "👥 **Registered Users**\n\n"
@@ -261,17 +383,25 @@ async def check_users_cb(client: Client, cq: CallbackQuery):
         username = f"@{u['username']}" if u.get("username") else "NoUsername"
         text += f"{idx}. {username} | ID: `{u['user_id']}`\n"
 
-    kb = []
-    nav = []
+    # Build navigation buttons
+    buttons = []
+    nav_buttons = []
+    
     if page > 0:
-        nav.append(InlineKeyboardButton("⬅ Back", callback_data=f"check_users:{page-1}"))
+        nav_buttons.append(InlineKeyboardButton("⬅️ Previous", callback_data=f"check_users:{page-1}"))
+    
+    total_pages = (len(users) + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE
+    nav_buttons.append(InlineKeyboardButton(f"📄 {page+1}/{total_pages}", callback_data="no_action"))
+    
     if has_next:
-        nav.append(InlineKeyboardButton("➡ Next", callback_data=f"check_users:{page+1}"))
-    if nav:
-        kb.append(nav)
-    kb.append([InlineKeyboardButton("↩ Back to Ban Menu", callback_data="ban_menu")])
+        nav_buttons.append(InlineKeyboardButton("Next ➡️", callback_data=f"check_users:{page+1}"))
+    
+    if nav_buttons:
+        buttons.append(nav_buttons)
+    
+    buttons.append([InlineKeyboardButton("↩ Back to Admin Panel", callback_data="admin_panel")])
 
-    await cq.message.edit_text(text, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.MARKDOWN)
+    await cq.message.edit_text(text, reply_markup=InlineKeyboardMarkup(buttons), parse_mode=ParseMode.MARKDOWN)
 
 # ================= CHECK CHANNELS =================
 @Client.on_callback_query(filters.regex(r"^check_channels:(\d+)$"))
@@ -281,26 +411,220 @@ async def check_channels_cb(client: Client, cq: CallbackQuery):
     channels_page, has_next = paginate_list(channels, page)
 
     if not channels_page:
-        await cq.answer("❌ No channels found.", show_alert=True)
+        await cq.message.edit_text(
+            "📭 **No Channels Found**",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("↩ Back to Admin Panel", callback_data="admin_panel")]
+            ]),
+            parse_mode=ParseMode.HTML
+        )
         return
     
     text = "📋 **Submitted Channels**\n\n"
     for idx, ch in enumerate(channels_page, start=page*ITEMS_PER_PAGE+1):
-        name = ch.get("title", "UnnamedChannel")
+        title = ch.get("title", "Unnamed Channel")
+        username = f"@{ch.get('username', 'private')}" 
+        channel_id = ch.get("channel_id", "N/A")
         status = ch.get("status", "UNKNOWN")
-        text += f"{idx}. {name} | ID: `{ch['channel_id']}` | Status: {status}\n"
+        subs = ch.get("subs_count", "N/A")
+        
+        text += (
+            f"💼 **Channel {idx}:**\n"
+            f"   • **Title:** {title}\n"
+            f"   • **Username:** {username}\n"
+            f"   • **ID:** `{channel_id}`\n"
+            f"   • **Subscribers:** {subs}\n"
+            f"   • **Status:** {status}\n\n"
+        )
 
-    kb = []
-    nav = []
+    # Build navigation buttons
+    buttons = []
+    nav_buttons = []
+    
     if page > 0:
-        nav.append(InlineKeyboardButton("⬅ Back", callback_data=f"check_channels:{page-1}"))
+        nav_buttons.append(InlineKeyboardButton("⬅️ Previous", callback_data=f"check_channels:{page-1}"))
+    
+    total_pages = (len(channels) + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE
+    nav_buttons.append(InlineKeyboardButton(f"📄 {page+1}/{total_pages}", callback_data="no_action"))
+    
     if has_next:
-        nav.append(InlineKeyboardButton("➡ Next", callback_data=f"check_channels:{page+1}"))
-    if nav:
-        kb.append(nav)
-    kb.append([InlineKeyboardButton("↩ Back to Ban Menu", callback_data="ban_menu")])
+        nav_buttons.append(InlineKeyboardButton("Next ➡️", callback_data=f"check_channels:{page+1}"))
+    
+    if nav_buttons:
+        buttons.append(nav_buttons)
+    
+    buttons.append([InlineKeyboardButton("↩ Back to Admin Panel", callback_data="admin_panel")])
 
-    await cq.message.edit_text(text, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.MARKDOWN)
+    await cq.message.edit_text(text, reply_markup=InlineKeyboardMarkup(buttons), parse_mode=ParseMode.HTML)
+
+# ================= DELETE CHANNEL MENU =================
+@Client.on_callback_query(filters.regex(r"^delete_channel_menu:(\d+)$"))
+async def delete_channel_menu(client: Client, cq: CallbackQuery):
+    page = int(cq.matches[0].group(1))
+    channels = database.get_all_channels()
+    channels_page, has_next = paginate_list(channels, page)
+
+    if not channels_page:
+        await cq.message.edit_text(
+            "📭 **No Channels Found**",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("↩ Back to Admin Panel", callback_data="admin_panel")]
+            ]),
+            parse_mode=ParseMode.HTML
+        )
+        return
+    
+    buttons = []
+    for channel in channels_page:
+        channel_id = channel.get("channel_id", "N/A")
+        title = channel.get("title", "Unknown Channel")
+        username = f"@{channel.get('username', 'private')}"
+        
+        # Shorten title if too long
+        if len(title) > 20:
+            title = title[:17] + "..."
+        
+        buttons.append([InlineKeyboardButton(
+            f"🗑️ {title} ({username}) - ID: {channel_id}",
+            callback_data=f"confirm_channel_delete:{channel_id}:{page}"
+        )])
+    
+    # Navigation buttons
+    nav_buttons = []
+    if page > 0:
+        nav_buttons.append(InlineKeyboardButton("⬅️ Previous", callback_data=f"delete_channel_menu:{page-1}"))
+    
+    total_pages = (len(channels) + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE
+    nav_buttons.append(InlineKeyboardButton(f"📄 {page+1}/{total_pages}", callback_data="no_action"))
+    
+    if has_next:
+        nav_buttons.append(InlineKeyboardButton("Next ➡️", callback_data=f"delete_channel_menu:{page+1}"))
+    
+    if nav_buttons:
+        buttons.append(nav_buttons)
+    
+    buttons.append([InlineKeyboardButton("↩ Back to Admin Panel", callback_data="admin_panel")])
+    
+    await cq.message.edit_text(
+        "🗑️ **Select Channel to Delete**\n\nChoose a channel to delete from the database:",
+        reply_markup=InlineKeyboardMarkup(buttons),
+        parse_mode=ParseMode.HTML
+    )
+
+# ================= CONFIRM CHANNEL DELETE =================
+@Client.on_callback_query(filters.regex(r"^confirm_channel_delete:(-?\d+):(\d+)$"))
+async def confirm_channel_delete(client: Client, cq: CallbackQuery):
+    channel_id = int(cq.matches[0].group(1))
+    page = int(cq.matches[0].group(2))
+    
+    channel_data = database.get_channel_by_id(channel_id)
+    if not channel_data:
+        await cq.answer("❌ Channel not found.", show_alert=True)
+        return
+    
+    title = channel_data.get("title", "Unknown Channel")
+    username = f"@{channel_data.get('username', 'private')}"
+    status = channel_data.get("status", "UNKNOWN")
+    owner_id = channel_data.get("user_id", "Unknown")
+    
+    await cq.message.edit_text(
+        f"⚠️ **Confirm Channel Deletion**\n\n"
+        f"**Channel:** {title}\n"
+        f"**Username:** {username}\n"
+        f"**ID:** `{channel_id}`\n"
+        f"**Status:** {status}\n"
+        f"**Owner ID:** `{owner_id}`\n\n"
+        f"Are you sure you want to delete this channel from the database?",
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("✅ Yes, Delete", callback_data=f"delete_channel_yes:{channel_id}:{page}")],
+            [InlineKeyboardButton("❌ Cancel", callback_data=f"delete_channel_menu:{page}")]
+        ]),
+        parse_mode=ParseMode.HTML
+    )
+
+# ================= EXECUTE CHANNEL DELETE =================
+@Client.on_callback_query(filters.regex(r"^delete_channel_yes:(-?\d+):(\d+)$"))
+async def execute_channel_delete(client: Client, cq: CallbackQuery):
+    channel_id = int(cq.matches[0].group(1))
+    page = int(cq.matches[0].group(2))
+    
+    channel_data = database.get_channel_by_id(channel_id)
+    if not channel_data:
+        await cq.answer("❌ Channel not found.", show_alert=True)
+        return
+    
+    title = channel_data.get("title", "Unknown Channel")
+    username = channel_data.get("username", "private")
+    owner_id = channel_data.get("user_id")
+    
+    try:
+        # Delete channel from database
+        success = database.remove_channel(owner_id, channel_id)
+        
+        if success:
+            # Notify the channel owner
+            if owner_id:
+                try:
+                    await client.send_message(
+                        owner_id,
+                        f"🚫 **Your channel has been deleted by admin**\n\n"
+                        f"**Channel:** {title}\n"
+                        f"**Username:** @{username}\n"
+                        f"**ID:** `{channel_id}`\n\n"
+                        f"Your channel has been removed from the promotion system."
+                    )
+                except Exception as e:
+                    print(f"Could not notify owner {owner_id}: {e}")
+            
+            # Notify all admins
+            for admin_id in config.ADMINS:
+                if admin_id != cq.from_user.id:  # Don't notify the admin who performed the action
+                    try:
+                        await client.send_message(
+                            admin_id,
+                            f"🔔 **Channel Deletion Report**\n\n"
+                            f"**Deleted by:** {cq.from_user.mention}\n"
+                            f"**Channel:** {title}\n"
+                            f"**Username:** @{username}\n"
+                            f"**ID:** `{channel_id}`\n"
+                            f"**Owner ID:** `{owner_id}`"
+                        )
+                    except Exception as e:
+                        print(f"Could not notify admin {admin_id}: {e}")
+            
+            await cq.message.edit_text(
+                f"✅ **Channel Deleted Successfully**\n\n"
+                f"**Channel:** {title}\n"
+                f"**Username:** @{username}\n"
+                f"**ID:** `{channel_id}`\n\n"
+                f"✅ Owner has been notified.\n"
+                f"✅ Admins have been notified.",
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("📋 Back to Channels", callback_data=f"check_channels:{page}")],
+                    [InlineKeyboardButton("↩ Admin Panel", callback_data="admin_panel")]
+                ]),
+                parse_mode=ParseMode.HTML
+            )
+        else:
+            await cq.message.edit_text(
+                "❌ **Failed to delete channel**\n\n"
+                "Database error occurred.",
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("📋 Back to Channels", callback_data=f"check_channels:{page}")],
+                    [InlineKeyboardButton("↩ Admin Panel", callback_data="admin_panel")]
+                ]),
+                parse_mode=ParseMode.HTML
+            )
+            
+    except Exception as e:
+        await cq.message.edit_text(
+            f"❌ **Error deleting channel:**\n\n{str(e)}",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("📋 Back to Channels", callback_data=f"check_channels:{page}")],
+                [InlineKeyboardButton("↩ Admin Panel", callback_data="admin_panel")]
+            ]),
+            parse_mode=ParseMode.HTML
+        )
 
 # ================== BAN / UNBAN COMMANDS ==================
 @Client.on_message(filters.command("banuser") & filters.user(config.ADMINS))
@@ -469,22 +793,6 @@ async def ban_channel_cb(client: Client, cq: CallbackQuery):
     await cq.message.edit_text(
         "❌ Usage: /banchannel [channel_id]\n\n"
         "Example: /banchannel -100123456789",
-        reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton("↩ Back to Ban Menu", callback_data="ban_menu")]
-        ])
-    )
-
-# Unban Channel
-@Client.on_callback_query(filters.regex(r"^unban_channel$"))
-async def unban_channel_cb(client: Client, cq: CallbackQuery):
-    if cq.from_user.id not in config.ADMINS:
-        await cq.answer("❌ Admin access required!", show_alert=True)
-        return
-    
-    await cq.answer()
-    await cq.message.edit_text(
-        "❌ Usage: /unbanchannel [channel_id]\n\n"
-        "Example: /unbanchannel -100123456789",
         reply_markup=InlineKeyboardMarkup([
             [InlineKeyboardButton("↩ Back to Ban Menu", callback_data="ban_menu")]
         ])
