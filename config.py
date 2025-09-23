@@ -64,7 +64,7 @@ if SUPPORT_CHAT and not re.match(r"^https?://", SUPPORT_CHAT):
     raise SystemExit("[ERROR] - Invalid SUPPORT_CHAT URL. Must start with https://")
 
 # config.py
-RENDER_PORT = 10000  # Or set from env: int(os.getenv("RENDER_PORT", 10000))
+RENDER_PORT = 1000  # Or set from env: int(os.getenv("RENDER_PORT", 10000))
 
 # Debug print to check ADMINS is set correctly
 print(f"ADMINS: {ADMINS}")
@@ -90,6 +90,7 @@ print(f"MIN_CHANNELS_FOR_CROSS_PROMO: {MIN_CHANNELS_FOR_CROSS_PROMO}")
 print(f"MIN_SUBSCRIBERS: {MIN_SUBSCRIBERS}")
 print(f"PROMO_IMAGE: {PROMO_IMAGE}")
 print(f"OWNER_USERNAME: {OWNER_USERNAME}")
+
 
 
 
