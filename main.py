@@ -38,21 +38,35 @@ app = Client(
 )
 
 async def main():
-    await app.start()
-    LOGGER.info("🚀 Promo Father Bot is starting...")
+    try:
+        LOGGER.info("🤖 Starting bot...")
+        await app.start()
+        
+        # Get bot info to verify it's working
+        me = await app.get_me()
+        LOGGER.info(f"✅ Bot started successfully: @{me.username} (ID: {me.id})")
+        LOGGER.info("📡 Bot is now listening for messages...")
 
-    # Start the auto-delete worker
-    if config.AUTO_DELETE_ENABLED:
-        asyncio.create_task(promo_cleanup_worker(app))
-        LOGGER.info("🔄 Auto-delete worker started")
-    else:
-        LOGGER.info("⏸️ Auto-delete is disabled in config")
+        # Start the auto-delete worker
+        if config.AUTO_DELETE_ENABLED:
+            asyncio.create_task(promo_cleanup_worker(app))
+            LOGGER.info("🔄 Auto-delete worker started")
+        else:
+            LOGGER.info("⏸️ Auto-delete is disabled in config")
 
-    # Keep the bot running
-    await asyncio.Event().wait()
+        # Keep the bot running
+        await asyncio.Event().wait()
+        
+    except Exception as e:
+        LOGGER.error(f"❌ Error in main: {e}", exc_info=True)
+        raise
 
 if __name__ == "__main__":
+    LOGGER.info("🚀 Initializing application...")
+    
     # Start health check server in a separate thread
     threading.Thread(target=run_health_server, daemon=True).start()
+    LOGGER.info("❤️ Health check server started")
     
+    # Run the bot
     app.run(main())
